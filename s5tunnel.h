@@ -11,8 +11,8 @@ typedef struct s5_remote {
     const char* local_port;
     uint8_t remote_type;
     size_t remote_len;
-    const uint8_t* remote;
-    const s5_remote_t *next;
+    uint8_t* remote;
+    struct s5_remote *next;
 } s5_remote_t;
 
 typedef struct s5_config {
@@ -23,7 +23,7 @@ typedef struct s5_config {
     const char* user;
     const char* passwd;
 
-    const s5_remote_t *remotes;
+    s5_remote_t *remotes;
 } s5_config_t;
 
 typedef struct s5_context {
@@ -34,7 +34,7 @@ typedef struct s5_context {
 typedef struct s5_thread {
     pthread_t thread;
     s5_context_t ctx;
-    s5_thread_t *next;
+    struct s5_thread *next;
 } s5_thread_t;
 
 typedef struct s5_fdpair {

@@ -3,10 +3,12 @@
 #include "log.h"
 #include <unistd.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <string.h>
 #include <errno.h>
 #include <poll.h>
+#include <stdlib.h>
 
 void sockaddr_to_str(const struct sockaddr *sa, char *s, size_t len) {
     if (sa->sa_family == AF_INET) inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr), s, len);
@@ -113,7 +115,7 @@ int s5_new_connection(const s5_config_t *config, const s5_remote_t *remote) {
         goto err_new_conn;
     }
 
-    static int state = METHOD_SENT;
+    int state = METHOD_SENT;
     uint8_t buffer[128];
     uint8_t send_buffer[128];
 
@@ -147,14 +149,13 @@ int s5_new_connection(const s5_config_t *config, const s5_remote_t *remote) {
                 goto err_new_conn;
             }
 
-            if ((reply->method == S5_AUTH_USER_PASSWD) == config->auth_enabled) {
+            if ((reply->method == S5_AUTH_USER_PASSWD) != config->auth_enabled) {
                 log_fatal("bad server auth method: %d.\n", reply->method);
                 goto err_new_conn;
             }
 
             if (reply->method == S5_AUTH_NONE) {
                 state = AUTH_SENT;
-                continue;
             }
 
             if (reply->method == S5_AUTH_USER_PASSWD) {
@@ -219,12 +220,12 @@ void fdbridge(int a, int b) {
     fds[1].fd = b;
     fds[0].events = fds[1].events = POLLIN;
     uint8_t buffer[65536];
+    bool ain = false, bin = false;
 
     while (1) {
-        bool ain = false, bin = false;
         if (poll(fds, 2, -1) < 0) {
             log_fatal("poll(): %s\n", strerror(errno));
-            return;
+            goto br_err;
         }
 
         if (fds[0].revents & POLLIN) {
@@ -232,13 +233,16 @@ void fdbridge(int a, int b) {
             ssize_t rsz = read(fds[0].fd, buffer, sizeof(buffer));
             if (rsz < 0) {
                 log_fatal("read(): %s\n", strerror(errno));
-                return;
+                goto br_err;
             }
-            if (rsz == 0) return;
+            if (rsz == 0) {
+                log_debug("read(): fd closed.\n");
+                goto br_done;
+            }
             ssize_t wsz = write(fds[1].fd, buffer, (size_t) rsz);
             if (wsz < 0) {
                 log_fatal("write(): %s\n", strerror(errno));
-                return;
+                goto br_err;
             }
             if (wsz != rsz) {
                 log_warn("inconsistent write size.\n");
@@ -256,7 +260,7 @@ void fdbridge(int a, int b) {
             ssize_t wsz = write(fds[0].fd, buffer, (size_t) rsz);
             if (wsz < 0) {
                 log_fatal("write(): %s\n", strerror(errno));
-                return;
+                goto br_err;
             }
             if (wsz != rsz) {
                 log_warn("inconsistent write size.\n");
@@ -267,31 +271,53 @@ void fdbridge(int a, int b) {
             log_warn("poll() returned but nothing ready.\n");
         }
 
-        // todo: return on revents error
+        ain = bin = false;
     }
+
+br_err:
+    log_error("broken pipe.");
+
+br_done:
+    return;
 }
 
-void s5_worker_tcp_conn(void *p) {
+void* s5_worker_tcp_conn(void *p) {
     s5_fdpair_t *fds = (s5_fdpair_t *) p;
     fdbridge(fds->local, fds->remote);
+    close(fds->remote);
+    close(fds->local);
+    log_debug("connection closed.\n");
     free(p);
+
+    return NULL;
 }
 
-void s5_worker_tcp(void *ctx) {
+void* s5_worker_tcp(void *ctx) {
     s5_context_t *context = (s5_context_t *) ctx;
     int fd = gai_bind(context->remote->local_host, context->remote->local_port, SOCK_STREAM, IPPROTO_TCP);
-    if (fd < 0) return;
+    if (fd < 0) return NULL;
+
+    if (listen(fd, 5) < 0) {
+        log_fatal("listen(): %s\n", strerror(errno));
+        return NULL;
+    }
 
     s5_thread_t *threads, *cur;
     threads = (s5_thread_t *) malloc(sizeof(s5_thread_t));
     cur = threads;
 
+    struct sockaddr_storage client_addr;
+    socklen_t client_addr_len = sizeof(struct sockaddr_storage);
+    char client_addr_str[INET6_ADDRSTRLEN];
+
     while (1) {
-        int lfd = listen(fd, 5);
+        int lfd = accept(fd, (struct sockaddr *) &client_addr, &client_addr_len);
         if (lfd < 0) {
-            log_fatal("listen(): %s\n", strerror(errno));
+            log_fatal("accept(): %s\n", strerror(errno));
             goto err_tcp;
         }
+        sockaddr_to_str((struct sockaddr *) &client_addr, client_addr_str, INET6_ADDRSTRLEN);
+        log_debug("new tcp client: %s -> %s:%s\n", client_addr_str, context->remote->local_host, context->remote->local_port);
         int rfd = s5_new_connection(context->config, context->remote);
         if (rfd < 0) goto err_tcp;
         s5_fdpair_t *p = (s5_fdpair_t *) malloc(sizeof(s5_fdpair_t));
@@ -309,12 +335,15 @@ void s5_worker_tcp(void *ctx) {
     }
 
 err_tcp:
-
+    return NULL; // todo
 }
 
-void s5_worker_udp(void *ctx) {
+void* s5_worker_udp(void *ctx) {
     s5_context_t *context = (s5_context_t *) ctx;
     // todo
+
+err_udp:
+    return NULL;
 }
 
 void s5_run(const s5_config_t *config) {
@@ -353,6 +382,7 @@ ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt)
         } __attribute__((packed)) addr;
 
         int s = inet_pton(AF_INET, host, &(addr.addr));
+        addr.port = port;
         if (s <= 0) {
             if (s == 0) log_fatal("inet_pton(): invalid ipv4 address.\n");
             if (s < 0) log_fatal("inet_pton(): %s\n", strerror(errno));
@@ -368,6 +398,7 @@ ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt)
         } __attribute__((packed)) addr;
 
         int s = inet_pton(AF_INET6, host, &(addr.addr));
+        addr.port = port;
         if (s <= 0) {
             if (s == 0) log_fatal("inet_pton(): invalid ipv4 address.\n");
             if (s < 0) log_fatal("inet_pton(): %s\n", strerror(errno));
@@ -382,7 +413,7 @@ ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt)
         *rslt = malloc(buf_sz);
         *rslt[0] = dlen;
         memcpy((*rslt) + 1, host, dlen);
-        *((uint16_t *) *rslt[dlen + 1]) = port;
+        *((uint16_t *) rslt[dlen + 1]) = port;
         return buf_sz;
     } else {
         log_error("bad address type %d.\n", atyp);
