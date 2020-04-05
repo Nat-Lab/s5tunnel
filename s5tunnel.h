@@ -46,4 +46,7 @@ enum s5_states {
     IDLE, METHOD_SENT, AUTH_SENT, REQUEST_SENT
 };
 
+void s5_run(const s5_config_t *config);
+ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt);
+
 #endif 

@@ -213,17 +213,67 @@ err_new_conn:
     return -1;
 }
 
-void s5_fdbridge(int a, int b) {
+void fdbridge(int a, int b) {
     struct pollfd fds[2];
     fds[0].fd = a;
     fds[1].fd = b;
     fds[0].events = fds[1].events = POLLIN;
-    // todo
+    uint8_t buffer[65536];
+
+    while (1) {
+        bool ain = false, bin = false;
+        if (poll(fds, 2, -1) < 0) {
+            log_fatal("poll(): %s\n", strerror(errno));
+            return;
+        }
+
+        if (fds[0].revents & POLLIN) {
+            ain = true;
+            ssize_t rsz = read(fds[0].fd, buffer, sizeof(buffer));
+            if (rsz < 0) {
+                log_fatal("read(): %s\n", strerror(errno));
+                return;
+            }
+            if (rsz == 0) return;
+            ssize_t wsz = write(fds[1].fd, buffer, (size_t) rsz);
+            if (wsz < 0) {
+                log_fatal("write(): %s\n", strerror(errno));
+                return;
+            }
+            if (wsz != rsz) {
+                log_warn("inconsistent write size.\n");
+            }
+        }
+
+        if (fds[1].revents & POLLIN) {
+            bin = true;
+            ssize_t rsz = read(fds[1].fd, buffer, sizeof(buffer));
+            if (rsz < 0) {
+                log_fatal("read(): %s\n", strerror(errno));
+                return;
+            }
+            if (rsz == 0) return;
+            ssize_t wsz = write(fds[0].fd, buffer, (size_t) rsz);
+            if (wsz < 0) {
+                log_fatal("write(): %s\n", strerror(errno));
+                return;
+            }
+            if (wsz != rsz) {
+                log_warn("inconsistent write size.\n");
+            }
+        }
+
+        if (!ain && !bin) {
+            log_warn("poll() returned but nothing ready.\n");
+        }
+
+        // todo: return on revents error
+    }
 }
 
 void s5_worker_tcp_conn(void *p) {
     s5_fdpair_t *fds = (s5_fdpair_t *) p;
-    // todo
+    fdbridge(fds->local, fds->remote);
     free(p);
 }
 
@@ -293,4 +343,52 @@ void s5_run(const s5_config_t *config) {
     goto err_run;
 err_run:
     return; // FIXME: stop workers, free structs
+}
+
+ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt) {
+    if (atyp == ATYP_IP) {
+        struct {
+            in_addr_t addr;
+            in_port_t port;
+        } __attribute__((packed)) addr;
+
+        int s = inet_pton(AF_INET, host, &(addr.addr));
+        if (s <= 0) {
+            if (s == 0) log_fatal("inet_pton(): invalid ipv4 address.\n");
+            if (s < 0) log_fatal("inet_pton(): %s\n", strerror(errno));
+        }
+
+        *rslt = malloc(sizeof(addr));
+        memcpy(*rslt, &addr, sizeof(addr));
+        return sizeof(addr);
+    } else if (atyp == ATYP_IP6) {
+        struct {
+            in6_addr_t addr;
+            in_port_t port;
+        } __attribute__((packed)) addr;
+
+        int s = inet_pton(AF_INET6, host, &(addr.addr));
+        if (s <= 0) {
+            if (s == 0) log_fatal("inet_pton(): invalid ipv4 address.\n");
+            if (s < 0) log_fatal("inet_pton(): %s\n", strerror(errno));
+        }
+
+        *rslt = malloc(sizeof(addr));
+        memcpy(*rslt, &addr, sizeof(addr));
+        return sizeof(addr);
+    } else if (atyp == ATYP_FQDN) {
+        size_t dlen = strlen(host);
+        size_t buf_sz = 1 + dlen + sizeof(in_port_t); // 1: length field
+        *rslt = malloc(buf_sz);
+        *rslt[0] = dlen;
+        memcpy((*rslt) + 1, host, dlen);
+        *((uint16_t *) *rslt[dlen + 1]) = port;
+        return buf_sz;
+    } else {
+        log_error("bad address type %d.\n", atyp);
+        return -1;
+    }
+
+    log_fatal("unreached.\n");
+    return -1;
 }
