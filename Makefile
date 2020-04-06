@@ -13,4 +13,4 @@ s5tunnel: $(OBJS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 clean:
-	rm -f $(TARGETS) *.o
+	rm -f $(TARGETS) $(OBJS)
