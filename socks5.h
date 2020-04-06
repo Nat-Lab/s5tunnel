@@ -57,4 +57,4 @@ typedef struct s5_udp_payload_hdr {
     uint8_t atyp;
 } __attribute__((packed)) s5_udp_payload_hdr_t;
 
-#endif
+#endif // S5_SOCKS5_H

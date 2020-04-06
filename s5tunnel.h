@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 typedef struct s5_remote {
     int protocol;
@@ -49,4 +50,4 @@ enum s5_states {
 void s5_run(const s5_config_t *config);
 ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt);
 
-#endif 
+#endif // S5TUNNEL_H

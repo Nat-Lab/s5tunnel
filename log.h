@@ -13,4 +13,4 @@
 #define log_debug(fmt, ...)
 #endif 
 
-#endif S5TUNNEL_LOG
+#endif // S5TUNNEL_LOG
