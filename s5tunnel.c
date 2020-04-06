@@ -104,6 +104,10 @@ int gai_bind(const char *host, const char *port, int socktype, int protocol) {
 
 int s5_new_connection(const s5_config_t *config, const s5_remote_t *remote) {
     int fd = gai_connect(config->server_host, config->server_port, SOCK_STREAM, IPPROTO_TCP);
+    if (fd < 0) {
+        log_error("can't connect to socks5 server.\n");
+        return -1;
+    }
 
     s5_method_request_t mreq;
     mreq.ver = SOCK_VER;
@@ -319,15 +323,21 @@ void* s5_worker_tcp(void *ctx) {
         sockaddr_to_str((struct sockaddr *) &client_addr, client_addr_str, INET6_ADDRSTRLEN);
         log_debug("new tcp client: %s -> %s:%s\n", client_addr_str, context->remote->local_host, context->remote->local_port);
         int rfd = s5_new_connection(context->config, context->remote);
-        if (rfd < 0) goto err_tcp;
+        if (rfd < 0) {
+            log_error("can't create new socks5 connection.\n");
+            close(lfd);
+            continue;
+        }
         s5_fdpair_t *p = (s5_fdpair_t *) malloc(sizeof(s5_fdpair_t));
         p->local = lfd;
         p->remote = rfd;
 
         int s = pthread_create(&(cur->thread), NULL, s5_worker_tcp_conn, p);
         if (s != 0) {
+            close(lfd);
+            close(rfd);
             log_fatal("failed to start connection worker: %s\n", strerror(s));
-            goto err_tcp;
+            continue;
         }
 
         cur->next = (s5_thread_t *) malloc(sizeof(s5_thread_t));
@@ -335,7 +345,8 @@ void* s5_worker_tcp(void *ctx) {
     }
 
 err_tcp:
-    return NULL; // todo
+    close(fd);
+    return NULL;
 }
 
 void* s5_worker_udp(void *ctx) {
@@ -347,6 +358,11 @@ err_udp:
 }
 
 void s5_run(const s5_config_t *config) {
+    if (config->remotes == NULL) {
+        log_error("no tunnel configured.\n");
+        return;
+    }
+
     s5_thread_t *threads, *cur;
     threads = (s5_thread_t *) malloc(sizeof(s5_thread_t));
     cur = threads;
@@ -361,11 +377,15 @@ void s5_run(const s5_config_t *config) {
         }
         cur->next = (s5_thread_t *) malloc(sizeof(s5_thread_t));
         cur = cur->next;
+        cur->thread = NULL;
+        cur->next = NULL;
     }
 
     for (cur = threads; cur != NULL; cur = cur->next) {
-        pthread_join(cur->thread, NULL);
-        log_warn("worker exited.\n");
+        if (cur->thread != NULL) {
+            pthread_join(cur->thread, NULL);
+            log_warn("worker exited.\n");
+        } 
     }
 
     log_warn("all workers exited.");

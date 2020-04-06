@@ -7,8 +7,8 @@
 
 typedef struct s5_remote {
     int protocol;
-    const char* local_host;
-    const char* local_port;
+    char* local_host;
+    char* local_port;
     uint8_t remote_type;
     size_t remote_len;
     uint8_t* remote;
@@ -16,12 +16,12 @@ typedef struct s5_remote {
 } s5_remote_t;
 
 typedef struct s5_config {
-    const char* server_host;
-    const char* server_port;
+    char* server_host;
+    char* server_port;
 
     bool auth_enabled;
-    const char* user;
-    const char* passwd;
+    char* user;
+    char* passwd;
 
     s5_remote_t *remotes;
 } s5_config_t;

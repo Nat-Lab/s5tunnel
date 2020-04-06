@@ -82,6 +82,22 @@ void help() {
     fprintf(stderr, "       RTYPE := { ip | ip6 | fqdn }\n");
 }
 
+void freeconfig(s5_config_t *cfg) {
+    if (cfg->server_host) free(cfg->server_host);
+    if (cfg->server_port) free(cfg->server_port);
+    if (cfg->user) free(cfg->user);
+    if (cfg->passwd) free(cfg->passwd);
+
+    for (s5_remote_t *r = cfg->remotes; r != NULL; ) {
+        if (r->local_host) free(r->local_host);
+        if (r->local_port) free(r->local_port);
+        if (r->remote) free(r->remote);
+        s5_remote_t *lst = r;
+        r = r->next;
+        free(lst);
+    }
+}
+
 int main (int argc, char **argv) {
     s5_config_t cfg;
     memset(&cfg, 0, sizeof(s5_config_t));
@@ -120,5 +136,6 @@ int main (int argc, char **argv) {
     s5_run(&cfg);
 
 err:
+    freeconfig(&cfg);
     return 1;
 }
