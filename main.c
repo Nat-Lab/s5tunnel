@@ -37,7 +37,7 @@ bool parse_tunnel(const char *s, s5_remote_t **remote, int proto) {
     }
 
     if (pos != 5) {
-        log_error("not enough options for tunnel specification: %s %d\n", s, pos);
+        log_error("not enough options for tunnel specification: %s\n", s);
         goto parse_end;
     }
 
