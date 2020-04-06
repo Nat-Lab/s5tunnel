@@ -413,7 +413,7 @@ ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt)
         *rslt = malloc(buf_sz);
         *rslt[0] = dlen;
         memcpy((*rslt) + 1, host, dlen);
-        *((uint16_t *) rslt[dlen + 1]) = port;
+        (*(uint16_t *) (*rslt + dlen + 1)) = port;
         return buf_sz;
     } else {
         log_error("bad address type %d.\n", atyp);
