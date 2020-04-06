@@ -120,8 +120,8 @@ int s5_new_connection(const s5_config_t *config, const s5_remote_t *remote) {
     }
 
     int state = METHOD_SENT;
-    uint8_t buffer[128];
-    uint8_t send_buffer[128];
+    uint8_t buffer[1024];
+    uint8_t send_buffer[1024];
 
     while (1) {
         ssize_t len = read(fd, buffer, sizeof(buffer));
@@ -153,23 +153,48 @@ int s5_new_connection(const s5_config_t *config, const s5_remote_t *remote) {
                 goto err_new_conn;
             }
 
-            if ((reply->method == S5_AUTH_USER_PASSWD) != config->auth_enabled) {
-                log_fatal("bad server auth method: %d.\n", reply->method);
-                goto err_new_conn;
-            }
-
             if (reply->method == S5_AUTH_NONE) {
+                if (config->auth_enabled) {
+                    log_fatal("remote server does not support auth.\n");
+                    goto err_new_conn;
+                }
                 state = AUTH_SENT;
             }
 
             if (reply->method == S5_AUTH_USER_PASSWD) {
-                /** todo **/
+                if (!config->auth_enabled) {
+                    log_fatal("remote server need auth.\n");
+                    goto err_new_conn;
+                }
+                size_t ulen = strnlen(config->user, 255);
+                size_t plen = strnlen(config->passwd, 255);
+                size_t pkt_len = ulen + plen + 3;
+                send_buffer[0] = 1;
+                send_buffer[1] = ulen;
+                memcpy(send_buffer + 2, config->user, ulen);
+                send_buffer[ulen + 2] = plen;
+                memcpy(send_buffer + ulen + 3, config->passwd, plen);
+                write(fd, send_buffer, pkt_len);
+                state = AUTH_SENT;
             }
         }
 
         if (state == AUTH_SENT) {
             if (config->auth_enabled) {
-                /** todo **/
+                if (len != 2) {
+                    log_fatal("bad auth reply message from server: invalid len (%zu).\n", len);
+                    goto err_new_conn;
+                }
+
+                if (buffer[0] != 1) {
+                    log_fatal("bad auth reply message from server: bad version (%d).\n", buffer[0]);
+                    goto err_new_conn;
+                }
+
+                if (buffer[1] != 0) {
+                    log_fatal("auth failed.\n");
+                    goto err_new_conn;
+                }
             }
 
             s5_request_hdr_t *request = (s5_request_hdr_t *) send_buffer;
