@@ -236,7 +236,7 @@ void fdbridge(int a, int b) {
             ain = true;
             ssize_t rsz = read(fds[0].fd, buffer, sizeof(buffer));
             if (rsz < 0) {
-                log_fatal("read(): %s\n", strerror(errno));
+                log_error("read(): %s\n", strerror(errno));
                 goto br_err;
             }
             if (rsz == 0) {
@@ -245,7 +245,7 @@ void fdbridge(int a, int b) {
             }
             ssize_t wsz = write(fds[1].fd, buffer, (size_t) rsz);
             if (wsz < 0) {
-                log_fatal("write(): %s\n", strerror(errno));
+                log_error("write(): %s\n", strerror(errno));
                 goto br_err;
             }
             if (wsz != rsz) {
@@ -257,13 +257,13 @@ void fdbridge(int a, int b) {
             bin = true;
             ssize_t rsz = read(fds[1].fd, buffer, sizeof(buffer));
             if (rsz < 0) {
-                log_fatal("read(): %s\n", strerror(errno));
+                log_error("read(): %s\n", strerror(errno));
                 return;
             }
             if (rsz == 0) return;
             ssize_t wsz = write(fds[0].fd, buffer, (size_t) rsz);
             if (wsz < 0) {
-                log_fatal("write(): %s\n", strerror(errno));
+                log_error("write(): %s\n", strerror(errno));
                 goto br_err;
             }
             if (wsz != rsz) {
