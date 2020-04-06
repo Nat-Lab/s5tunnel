@@ -34,7 +34,7 @@ local|remote
 ### Installation
 
 ```
-$ git clone http://github.com/nat-lab/s5tunnel
+$ git clone https://github.com/nat-lab/s5tunnel
 $ cd s5tunnel
 $ make
 ```
