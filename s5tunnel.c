@@ -279,7 +279,7 @@ void fdbridge(int a, int b) {
     }
 
 br_err:
-    log_error("broken pipe.");
+    log_error("broken pipe.\n");
 
 br_done:
     return;
