@@ -22,7 +22,7 @@ int gai_connect(const char *host, const char *port, int socktype, int protocol) 
     struct addrinfo hints, *result;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = PF_UNSPEC;
-    hints.ai_flags = AI_DEFAULT;
+    hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
     hints.ai_socktype = socktype;
     hints.ai_protocol = protocol;
     char remote_address_str[INET6_ADDRSTRLEN];
@@ -65,7 +65,7 @@ int gai_bind(const char *host, const char *port, int socktype, int protocol) {
     struct addrinfo hints, *result;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = PF_UNSPEC;
-    hints.ai_flags = AI_DEFAULT | AI_PASSIVE;
+    hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG | AI_PASSIVE;
     hints.ai_socktype = socktype;
     hints.ai_protocol = protocol;
     char remote_address_str[INET6_ADDRSTRLEN];
@@ -377,12 +377,12 @@ void s5_run(const s5_config_t *config) {
         }
         cur->next = (s5_thread_t *) malloc(sizeof(s5_thread_t));
         cur = cur->next;
-        cur->thread = NULL;
+        cur->thread = 0;
         cur->next = NULL;
     }
 
     for (cur = threads; cur != NULL; cur = cur->next) {
-        if (cur->thread != NULL) {
+        if (cur->thread != 0) {
             pthread_join(cur->thread, NULL);
             log_warn("worker exited.\n");
         } 
@@ -397,7 +397,7 @@ err_run:
 ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt) {
     if (atyp == ATYP_IP) {
         struct {
-            in_addr_t addr;
+            struct in_addr addr;
             in_port_t port;
         } __attribute__((packed)) addr;
 
@@ -413,7 +413,7 @@ ssize_t mks5addr(uint8_t atyp, const char *host, in_port_t port, uint8_t **rslt)
         return sizeof(addr);
     } else if (atyp == ATYP_IP6) {
         struct {
-            in6_addr_t addr;
+            struct in6_addr addr;
             in_port_t port;
         } __attribute__((packed)) addr;
 
