@@ -77,7 +77,7 @@ parse_end:
 
 void help() {
     fprintf(stderr, "usage: s5tunnel -s SERVER_HOST -p SERVER_PORT [-U USER -P PASS] TSPEC [TSPEC...]\n");
-    fprintf(stderr, "where: TUNNEL_SPEC := PROTO LADDR,LPORT,RTYPE,RADDR,RPORT\n");
+    fprintf(stderr, "where: TSPEC := PROTO LADDR,LPORT,RTYPE,RADDR,RPORT\n");
     fprintf(stderr, "       PROTO := { -t | -u }\n");
     fprintf(stderr, "       RTYPE := { ip | ip6 | fqdn }\n");
 }
