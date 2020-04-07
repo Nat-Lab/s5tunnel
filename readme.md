@@ -7,7 +7,7 @@ s5tunnel
 
 ```
 usage: s5tunnel -s SERVER_HOST -p SERVER_PORT [-U USER -P PASS] TSPEC [TSPEC...]
-where: TUNNEL_SPEC := PROTO LADDR,LPORT,RTYPE,RADDR,RPORT
+where: TSPEC := PROTO LADDR,LPORT,RTYPE,RADDR,RPORT
        PROTO := { -t | -u }
        RTYPE := { ip | ip6 | fqdn }
 ```

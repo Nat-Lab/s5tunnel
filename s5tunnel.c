@@ -232,6 +232,8 @@ int s5_new_connection(const s5_config_t *config, const s5_remote_t *remote) {
             
             if (remote->protocol == IPPROTO_UDP) {
                 /** todo **/
+                log_fatal("udp not yet implemented.\n");
+                goto err_new_conn;
             }
 
             return fd;
@@ -377,6 +379,8 @@ err_tcp:
 void* s5_worker_udp(void *ctx) {
     s5_context_t *context = (s5_context_t *) ctx;
     // todo
+    log_fatal("udp not yet implemented.\n");
+    goto err_udp;
 
 err_udp:
     return NULL;
@@ -413,7 +417,7 @@ void s5_run(const s5_config_t *config) {
         } 
     }
 
-    log_warn("all workers exited.");
+    log_warn("all workers exited.\n");
     goto err_run;
 err_run:
     return; // FIXME: stop workers, free structs
